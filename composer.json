@@ -1,0 +1,22 @@
+{
+    "name": "aatis/cache",
+    "type": "library",
+    "description": "Cache library of Aatis",
+    "authors": [
+        {
+            "name": "Maxime Batista",
+            "email": "maximebatista.lycee@gmail.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Aatis\\Cache\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=8.4",
+        "aatis/file-manager": "^1.0",
+        "psr/cache": "^3.0",
+    }
+}
+
