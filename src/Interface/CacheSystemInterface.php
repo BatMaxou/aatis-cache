@@ -1,6 +1,9 @@
 <?php
 
-namespace Aatis\Cache\Service;
+namespace Aatis\Cache\Interface;
+
+use Aatis\Cache\Service\CacheItemPool;
+use Psr\Cache\CacheItemInterface;
 
 interface CacheSystemInterface
 {
@@ -15,7 +18,61 @@ interface CacheSystemInterface
     public const YEAR = 31536000;
     public const BISECTILE_YEAR = 31622400;
 
-    public function set(string $key, mixed $value, int $expires, bool $defered, string $pool): bool;
+    public function set(
+        string $key,
+        mixed $value,
+        int|\DateTimeInterface $expires = self::MINUTE * 10,
+        string $pool = CacheItemPool::NAME,
+    ): bool;
 
-    public function get(string $key, string $pool): mixed;
+    public function defer(
+        string $key,
+        mixed $value,
+        int|\DateTimeInterface $expires = self::MINUTE * 10,
+        string $pool = CacheItemPool::NAME,
+    ): bool;
+
+    public function getItem(string $key, string $pool = CacheItemPool::NAME): CacheItemInterface;
+
+    /**
+     * @param string[] $keys
+     *
+     * @return iterable<CacheItemInterface>
+     */
+    public function getItems(array $keys, string $pool = CacheItemPool::NAME): iterable;
+
+    public function deleteItem(string $key, string $pool = CacheItemPool::NAME): bool;
+
+    /**
+     * @param string[] $keys
+     */
+    public function deleteItems(array $keys, string $pool = CacheItemPool::NAME): bool;
+
+    /**
+     * @param string[]|int $pools
+     *
+     * @return array<string, bool>
+     */
+    public function hasItem(string $key, array|int $pools = [CacheItemPool::NAME]): array;
+
+    /**
+     * @param string[]|int $pools
+     *
+     * @return array<string, bool>
+     */
+    public function commit(array|int $pools = [CacheItemPool::NAME]): array;
+
+    /**
+     * @param string[]|int $pools
+     *
+     * @return array<string, bool>
+     */
+    public function clear(array|int $pools = [CacheItemPool::NAME]): array;
+
+    /**
+     * @param string[]|int $pools
+     *
+     * @return array<string, bool>
+     */
+    public function sweep(array|int $pools = [CacheItemPool::NAME]): array;
 }
