@@ -4,6 +4,7 @@ namespace Aatis\Cache\Service;
 
 use Aatis\Cache\Component\CacheItem;
 use Aatis\Cache\Interface\CachePoolInterface;
+use Aatis\FileManager\Exception\DirectoryNotFoundException;
 use Aatis\FileManager\Interface\FileManagerInterface;
 use Psr\Cache\CacheItemInterface;
 use Psr\Log\LoggerInterface;
@@ -20,11 +21,11 @@ class CacheItemPool implements CachePoolInterface
     private array $deferedItems = [];
 
     public function __construct(
-        private readonly CacheItemBuilder $cacheItemBuilder,
-        private readonly FileManagerInterface $fileManager,
-        private readonly string $_document_root,
-        private readonly string $_cache_dir = '../var/cache',
-        private readonly ?LoggerInterface $logger = null,
+        protected readonly CacheItemBuilder $cacheItemBuilder,
+        protected readonly FileManagerInterface $fileManager,
+        protected readonly string $_document_root,
+        protected readonly string $_cache_dir = '../var/cache',
+        protected readonly ?LoggerInterface $logger = null,
     ) {
     }
 
@@ -157,15 +158,9 @@ class CacheItemPool implements CachePoolInterface
                 $this->fileManager->createFile($path, recursive: true);
             }
 
-            $content = \sprintf(
-                self::FILE_TEMPLATE,
-                $item->getKey(),
-                $item->getExpiration() ?? -1,
-                serialize($item->get()),
-            );
-
-            $this->fileManager->write($path, $content);
+            $this->fileManager->write($path, $this->buildContent($item));
         } catch (\Throwable $e) {
+            dd($e);
             if ($this->logger) {
                 $this->logger->warning('Failed to save cache item {key}: {error}', [
                     'key' => $item->getKey(),
@@ -217,7 +212,7 @@ class CacheItemPool implements CachePoolInterface
     public function clear(): bool
     {
         try {
-            $this->fileManager->deleteDirectory($this->getPathFromFileName(''), true);
+            $this->fileManager->deleteDirectory($this->getDirectoryPath(), true);
             $this->loadedKeys = [];
         } catch (\Throwable $e) {
             if ($this->logger) {
@@ -235,12 +230,7 @@ class CacheItemPool implements CachePoolInterface
     public function sweep(): bool
     {
         try {
-            $files = $this->fileManager->getFolder(\sprintf(
-                '%s/%s/%s',
-                $this->_document_root,
-                $this->_cache_dir,
-                static::NAME,
-            ));
+            $files = $this->fileManager->getFolder($this->getDirectoryPath());
             foreach ($files as $file) {
                 $path = $this->getPathFromFileName($file);
                 $content = $this->fileManager->read($path);
@@ -254,6 +244,8 @@ class CacheItemPool implements CachePoolInterface
                     $this->fileManager->deleteFile($path);
                 }
             }
+        } catch (DirectoryNotFoundException $e) {
+            return true;
         } catch (\Throwable $e) {
             if ($this->logger) {
                 $this->logger->warning('Failed to sweep cache: {error}', [
@@ -267,19 +259,43 @@ class CacheItemPool implements CachePoolInterface
         return true;
     }
 
-    private function getPathFromKey(string $key): string
+    protected function getPathFromKey(string $key): string
     {
         return $this->getPathFromFileName(hash('sha256', $key));
     }
 
-    private function getPathFromFileName(string $target): string
+    protected function getDirectoryPath(): string
     {
         return \sprintf(
-            '%s/%s/%s/%s',
+            '%s/%s/%s',
             $this->_document_root,
             $this->_cache_dir,
             static::NAME,
+        );
+    }
+
+    protected function getPathFromFileName(string $target): string
+    {
+        return \sprintf(
+            '%s/%s%s',
+            $this->getDirectoryPath(),
             $target,
+            $this->getFilesExtension(),
+        );
+    }
+
+    protected function getFilesExtension(): string
+    {
+        return '';
+    }
+
+    protected function buildContent(CacheItem $item): string
+    {
+        return \sprintf(
+            self::FILE_TEMPLATE,
+            $item->getKey(),
+            $item->getExpiration() ?? -1,
+            serialize($item->get()),
         );
     }
 }

@@ -40,6 +40,7 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
     {
         yield $tagBuilder->buildFromInterface(CachePoolInterface::class, [ServiceTagOption::SERVICE_TARGETED]);
         yield $tagBuilder->buildFromName(CacheItemPool::class, [ServiceTagOption::SERVICE_TARGETED, ServiceTagOption::FROM_CLASS]);
+        yield $tagBuilder->buildFromName(CacheRecipePool::class, [ServiceTagOption::SERVICE_TARGETED, ServiceTagOption::FROM_CLASS]);
     }
 
     public function set(
@@ -160,9 +161,7 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
                 return [];
             }
 
-            $this->explorePools($callback);
-
-            return [];
+            return $this->explorePools($callback);
         }
 
         $pools = $this->provide(['pools' => $pools]);
@@ -174,15 +173,17 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
         return $results;
     }
 
-    private function explorePools(callable $callback): bool
+    /**
+     * @return array<string, bool>
+     */
+    private function explorePools(callable $callback): array
     {
+        $results = [];
         foreach ($this->provide(['all' => true]) as $pool) {
-            if ($callback($pool)) {
-                return false;
-            }
+            $results[$pool::getName()] = $callback($pool);
         }
 
-        return true;
+        return $results;
     }
 
     private function savePoolItem(
