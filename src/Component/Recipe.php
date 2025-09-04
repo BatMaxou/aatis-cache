@@ -21,6 +21,7 @@ class Recipe implements RecipeInterface
         private string $class,
         private array $ingredients = [],
         ?callable $init = null,
+        ?int $expiration = null,
     ) {
         $this->steps[] = $init ?? fn ($ingredients) => new $ingredients['class']();
     }
@@ -70,5 +71,10 @@ class Recipe implements RecipeInterface
 
             yield $content->getParameters() => (string) $content;
         }
+    }
+
+    public function getExpiration(): int
+    {
+        return $this->expiration ?? -1;
     }
 }

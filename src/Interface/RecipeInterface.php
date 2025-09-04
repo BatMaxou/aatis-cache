@@ -29,4 +29,6 @@ interface RecipeInterface
      * @return iterable<string, string>
      */
     public function getSteps(): iterable;
+
+    public function getExpiration(): int;
 }
