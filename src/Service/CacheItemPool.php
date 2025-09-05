@@ -5,10 +5,6 @@ namespace Aatis\Cache\Service;
 use Aatis\Cache\Component\CacheItem;
 use Aatis\Cache\Interface\CachePoolInterface;
 use Aatis\Cache\Trait\PoolTrait;
-use Aatis\FileManager\Exception\DirectoryNotFoundException;
-use Aatis\FileManager\Interface\FileManagerInterface;
-use Psr\Cache\CacheItemInterface;
-use Psr\Log\LoggerInterface;
 
 class CacheItemPool implements CachePoolInterface
 {
@@ -42,19 +38,28 @@ class CacheItemPool implements CachePoolInterface
     {
         $content = $this->fileManager->read($path);
         if ('' === $content) {
-            return [
+            $result = [
                 'key' => '',
                 'expiration' => -1,
-                ...($withValue ? ['value' => null] : []),
             ];
+
+            if ($withValue) {
+                $result['value'] = null;
+            }
+
+            return $result;
         }
 
         $parsedContent = \explode("\n", $content, $withValue ? 3 : 2);
-
-        return [
+        $result = [
             'key' => $parsedContent[0],
             'expiration' => (int) $parsedContent[1],
-            ...($withValue ? ['value' => unserialize($parsedContent[2])] : [])
         ];
+
+        if ($withValue) {
+            $result['value'] = unserialize($parsedContent[2]);
+        }
+
+        return $result;
     }
 }

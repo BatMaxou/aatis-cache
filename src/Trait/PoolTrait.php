@@ -3,7 +3,6 @@
 namespace Aatis\Cache\Trait;
 
 use Aatis\Cache\Component\CacheItem;
-use Aatis\Cache\Interface\CachePoolInterface;
 use Aatis\Cache\Service\CacheItemBuilder;
 use Aatis\FileManager\Exception\DirectoryNotFoundException;
 use Aatis\FileManager\Interface\FileManagerInterface;
@@ -43,7 +42,7 @@ trait PoolTrait
                 }
 
                 $parsedContent = $this->getParsedContent($path);
-                if ($parsedContent['key'] !== $key) {
+                if ($parsedContent['key'] !== $this->getIdentifierFromKey($key)) {
                     return $this->cacheItemBuilder->build($key, null, null);
                 }
 
@@ -255,27 +254,39 @@ trait PoolTrait
     private function getPathFromFileName(string $target): string
     {
         return \sprintf(
-            '%s/%s%s',
+            '%s/%s',
             $this->getDirectoryPath(),
             $target,
-            $this->getFilesExtension(),
         );
+    }
+
+    private function getIdentifierFromKey(string $key): string
+    {
+        return hash('sha256', $key);
     }
 
     private function getPathFromKey(string $key): string
     {
-        return $this->getPathFromFileName(hash('sha256', $key));
+        return $this->getPathFromFileName(\sprintf(
+            '%s%s',
+            $this->getIdentifierFromKey($key),
+            $this->getFilesExtension(),
+        ));
     }
 
     /**
-     * @return $withValue ? array{
+     * @template T of bool
+     *
+     * @param T $withValue
+     *
+     * @return (T is true ? array{
      *  key: string,
      *  expiration: int,
      *  value: mixed
      * } : array{
      *  key: string,
      *  expiration: int
-     * }
+     * })
      */
     abstract private function getParsedContent(string $path, bool $withValue = true): array;
 

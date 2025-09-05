@@ -174,7 +174,11 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
     }
 
     /**
-     * @return array<string, bool>
+     * @template T
+     *
+     * @param callable(CachePoolInterface): T $callback
+     *
+     * @return array<string, T>
      */
     private function explorePools(callable $callback): array
     {
