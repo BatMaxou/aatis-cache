@@ -2,12 +2,12 @@
 
 namespace Aatis\Cache\Interface;
 
-use Aatis\Cache\Service\CacheItemPool;
 use Psr\Cache\CacheItemInterface;
 
 interface CacheSystemInterface
 {
     public const ALL_POOLS = 1;
+    public const SYSTEM_DEFAULT_POOL = 2;
 
     public const SECOND = 1;
     public const MINUTE = 60;
@@ -22,57 +22,57 @@ interface CacheSystemInterface
         string $key,
         mixed $value,
         int|\DateTimeInterface $expires = self::MINUTE * 10,
-        string $pool = CacheItemPool::NAME,
+        string|int $pool = self::SYSTEM_DEFAULT_POOL
     ): bool;
 
     public function defer(
         string $key,
         mixed $value,
         int|\DateTimeInterface $expires = self::MINUTE * 10,
-        string $pool = CacheItemPool::NAME,
+        string|int $pool = self::SYSTEM_DEFAULT_POOL
     ): bool;
 
-    public function getItem(string $key, string $pool = CacheItemPool::NAME): CacheItemInterface;
+    public function getItem(string $key, string|int $pool = self::SYSTEM_DEFAULT_POOL): CacheItemInterface;
 
     /**
      * @param string[] $keys
      *
      * @return iterable<CacheItemInterface>
      */
-    public function getItems(array $keys, string $pool = CacheItemPool::NAME): iterable;
+    public function getItems(array $keys, string|int $pool = self::SYSTEM_DEFAULT_POOL): iterable;
 
-    public function deleteItem(string $key, string $pool = CacheItemPool::NAME): bool;
+    public function deleteItem(string $key, string|int $pool = self::SYSTEM_DEFAULT_POOL): bool;
 
     /**
      * @param string[] $keys
      */
-    public function deleteItems(array $keys, string $pool = CacheItemPool::NAME): bool;
+    public function deleteItems(array $keys, string|int $pool = self::SYSTEM_DEFAULT_POOL): bool;
 
     /**
      * @param string[]|int $pools
      *
      * @return array<string, bool>
      */
-    public function hasItem(string $key, array|int $pools = [CacheItemPool::NAME]): array;
+    public function hasItem(string $key, array|int $pools = self::ALL_POOLS): array;
 
     /**
-     * @param string[]|int $pools
+     * @param string[]|string|int $pools
      *
      * @return array<string, bool>
      */
-    public function commit(array|int $pools = [CacheItemPool::NAME]): array;
+    public function commit(array|string|int $pools = self::ALL_POOLS): array;
 
     /**
-     * @param string[]|int $pools
+     * @param string[]|string|int $pools
      *
      * @return array<string, bool>
      */
-    public function clear(array|int $pools = [CacheItemPool::NAME]): array;
+    public function clear(array|string|int $pools = self::ALL_POOLS): array;
 
     /**
-     * @param string[]|int $pools
+     * @param string[]|string|int $pools
      *
      * @return array<string, bool>
      */
-    public function sweep(array|int $pools = [CacheItemPool::NAME]): array;
+    public function sweep(array|string|int $pools = self::ALL_POOLS): array;
 }

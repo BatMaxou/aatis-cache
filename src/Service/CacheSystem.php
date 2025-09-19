@@ -30,8 +30,9 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
     }
 
     public function __construct(
-        private readonly CacheItemBuilder $cacheItemBuilder,
         ContainerInterface $container,
+        private readonly CacheItemBuilder $cacheItemBuilder,
+        private readonly string $defaultPool = CacheItemPool::NAME,
     ) {
         $this->initServiceSubscriber($container);
     }
@@ -47,77 +48,74 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
         string $key,
         mixed $value,
         int|\DateTimeInterface $expires = CacheSystemInterface::MINUTE * 10,
-        string $pool = CacheItemPool::NAME,
+        string|int $pool = CacheSystemInterface::SYSTEM_DEFAULT_POOL,
     ): bool {
         return $this->doAction(
-            [$pool],
-            fn (CachePoolInterface $pool) => $this->savePoolItem($pool, $key, $value, $expires)
-        )[$pool] ?? false;
+            $pool,
+            fn (CachePoolInterface $pool) => $pool->save($this->prepareItemForPool($key, $value, $expires)),
+        )[$this->getResultPoolName($pool)] ?? false;
     }
 
     public function defer(
         string $key,
         mixed $value,
         int|\DateTimeInterface $expires = CacheSystemInterface::MINUTE * 10,
-        string $pool = CacheItemPool::NAME,
+        string|int $pool = CacheSystemInterface::SYSTEM_DEFAULT_POOL,
     ): bool {
         return $this->doAction(
-            [$pool],
-            fn (CachePoolInterface $pool) => $this->savePoolItem($pool, $key, $value, $expires, true)
-        )[$pool] ?? false;
+            $pool,
+            fn (CachePoolInterface $pool) => $pool->saveDeferred($this->prepareItemForPool($key, $value, $expires)),
+        )[$this->getResultPoolName($pool)] ?? false;
     }
 
-    public function getItem(string $key, string $pool = CacheItemPool::NAME): CacheItemInterface
+    public function getItem(string $key, string|int $pool = CacheSystemInterface::SYSTEM_DEFAULT_POOL): CacheItemInterface
     {
         return $this->doAction(
-            [$pool],
+            $pool,
             fn (CachePoolInterface $pool) => $pool->getItem($key),
-        )[$pool] ?? $this->cacheItemBuilder->build($key, null, null);
+        )[$this->getResultPoolName($pool)] ?? $this->cacheItemBuilder->build($key, null, null);
     }
 
-    public function getItems(array $keys, string $pool = CacheItemPool::NAME): iterable
+    public function getItems(array $keys, string|int $pool = CacheSystemInterface::SYSTEM_DEFAULT_POOL): iterable
     {
         return $this->doAction(
-            [$pool],
+            $pool,
             fn (CachePoolInterface $pool) => $pool->getItems($keys),
-        )[$pool] ?? [];
+        )[$this->getResultPoolName($pool)] ?? [];
     }
 
-    public function deleteItem(string $key, string $pool = CacheItemPool::NAME): bool
+    public function deleteItem(string $key, string|int $pool = CacheSystemInterface::SYSTEM_DEFAULT_POOL): bool
     {
         return $this->doAction(
-            [$pool],
+            $pool,
             fn (CachePoolInterface $pool) => $pool->deleteItem($key),
-        )[$pool] ?? false;
+        )[$this->getResultPoolName($pool)] ?? false;
     }
 
-    public function deleteItems(array $keys, string $pool = CacheItemPool::NAME): bool
+    public function deleteItems(array $keys, string|int $pool = CacheSystemInterface::SYSTEM_DEFAULT_POOL): bool
     {
         return $this->doAction(
-            [$pool],
+            $pool,
             fn (CachePoolInterface $pool) => $pool->deleteItems($keys),
-        )[$pool] ?? false;
+        )[$this->getResultPoolName($pool)] ?? false;
     }
 
-    public function hasItem(string $key, array|int $pools = [CacheItemPool::NAME]): array
+    public function hasItem(string $key, array|int $pools = CacheSystemInterface::ALL_POOLS): array
     {
-        return $this->doAction(
-            $pools,
-            fn (CachePoolInterface $pool) => $pool->hasItem($key),
-        );
+        return $this->doAction($pools, fn (CachePoolInterface $pool) => $pool->hasItem($key));
     }
 
-    public function commit(int|array $pools = [CacheItemPool::NAME]): array
+    public function commit(int|string|array $pools = CacheSystemInterface::ALL_POOLS): array
     {
         return $this->doAction($pools, fn (CachePoolInterface $pool) => $pool->commit());
     }
 
-    public function clear(array|int $pools = [CacheItemPool::NAME]): array
+    public function clear(array|string|int $pools = CacheSystemInterface::ALL_POOLS): array
     {
         return $this->doAction($pools, fn (CachePoolInterface $pool) => $pool->clear());
     }
 
-    public function sweep(array|int $pools = [CacheItemPool::NAME]): array
+    public function sweep(array|string|int $pools = CacheSystemInterface::ALL_POOLS): array
     {
         return $this->doAction($pools, fn (CachePoolInterface $pool) => $pool->sweep());
     }
@@ -149,56 +147,51 @@ class CacheSystem implements CacheSystemInterface, ServiceSubscriberInterface
     /**
      * @template T
      *
-     * @param string[]|int $pools
      * @param callable(CachePoolInterface): T $callback
      *
      * @return array<string, T>
      */
-    private function doAction(array|int $pools, callable $callback): array
+    private function doAction(array|string|int $targets, callable $callback): array
     {
-        if (is_int($pools)) {
-            if (CacheSystemInterface::ALL_POOLS !== $pools) {
-                return [];
-            }
-
-            return $this->explorePools($callback);
+        if (is_int($targets)) {
+            return match ($targets) {
+                CacheSystemInterface::ALL_POOLS => $this->explorePools($callback, ['all' => true]),
+                CacheSystemInterface::SYSTEM_DEFAULT_POOL => $this->doAction($this->defaultPool, $callback),
+                default => [],
+            };
         }
 
-        $pools = $this->provide(['pools' => $pools]);
-        $results = [];
-        foreach ($pools as $pool) {
-            $results[$pool::getName()] = $callback($pool);
-        }
+        return $this->explorePools($callback, ['pools' => is_array($targets) ? $targets : [$targets]]);
+    }
 
-        return $results;
+    private function getResultPoolName(string|int $pool): string
+    {
+        return is_string($pool) ? $pool : $this->defaultPool;
     }
 
     /**
      * @template T
      *
      * @param callable(CachePoolInterface): T $callback
+     * @param Context $context
      *
      * @return array<string, T>
      */
-    private function explorePools(callable $callback): array
+    private function explorePools(callable $callback, array $context = []): array
     {
         $results = [];
-        foreach ($this->provide(['all' => true]) as $pool) {
+        foreach ($this->provide($context) as $pool) {
             $results[$pool::getName()] = $callback($pool);
         }
 
         return $results;
     }
 
-    private function savePoolItem(
-        CachePoolInterface $pool,
+    private function prepareItemForPool(
         string $key,
         mixed $value,
         int|\DateTimeInterface $expires,
-        bool $defered = false,
-    ): bool {
-        $item = $this->cacheItemBuilder->build($key, $value, $expires, true);
-
-        return $defered ? $pool->saveDeferred($item) : $pool->save($item);
+    ): CacheItemInterface {
+        return $this->cacheItemBuilder->build($key, $value, $expires, true);
     }
 }

@@ -38,6 +38,13 @@ class Recipe implements RecipeInterface
         return $this;
     }
 
+    public function addIngredient(string $name, mixed $value): static
+    {
+        $this->ingredients[$name] = $value;
+
+        return $this;
+    }
+
     /**
      * @return iterable<string, string>
      */

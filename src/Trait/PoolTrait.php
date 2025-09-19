@@ -42,7 +42,7 @@ trait PoolTrait
                 }
 
                 $parsedContent = $this->getParsedContent($path);
-                if ($parsedContent['key'] !== $this->getIdentifierFromKey($key)) {
+                if ($parsedContent['identifier'] !== $this->getIdentifierFromKey($key)) {
                     return $this->cacheItemBuilder->build($key, null, null);
                 }
 
@@ -136,9 +136,7 @@ trait PoolTrait
     public function save(CacheItemInterface $item): bool
     {
         try {
-            if (!$item instanceof CacheItem) {
-                throw new \InvalidArgumentException(\sprintf('Cache item must be an instance of %s', CacheItem::class));
-            }
+            $item = $this->validateItem($item);
 
             $path = $this->getPathFromKey($item->getKey());
             if (!$this->fileManager->exists($path)) {
@@ -163,9 +161,7 @@ trait PoolTrait
     public function saveDeferred(CacheItemInterface $item): bool
     {
         try {
-            if (!$item instanceof CacheItem) {
-                throw new \InvalidArgumentException(\sprintf('Cache item must be an instance of %s', CacheItem::class));
-            }
+            $item = $this->validateItem($item);
 
             $this->deferedItems[$item->getKey()] = $item;
         } catch (\Throwable $e) {
@@ -241,6 +237,19 @@ trait PoolTrait
         return true;
     }
 
+    private function validateItem(CacheItemInterface $item): CacheItem
+    {
+        if (!$item instanceof CacheItem) {
+            throw new \InvalidArgumentException(\sprintf('Cache item must be an instance of %s', CacheItem::class));
+        }
+
+        if (false === static::supports($item)) {
+            throw new \InvalidArgumentException(\sprintf('Cache item %s is not supported by %s', $item->getKey(), static::class));
+        }
+
+        return $item;
+    }
+
     private function getDirectoryPath(): string
     {
         return \sprintf(
@@ -293,6 +302,8 @@ trait PoolTrait
     abstract private function getFilesExtension(): string;
 
     abstract private function buildContent(CacheItem $item): string;
+
+    abstract public static function supports(CacheItemInterface $item): bool;
 
     abstract public static function getName(): string;
 }

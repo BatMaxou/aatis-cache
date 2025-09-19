@@ -23,6 +23,8 @@ interface RecipeInterface extends ImmutableRecipeInterface
     /** @return iterable<string, string> */
     public function getSteps(): iterable;
 
+    public function addIngredient(string $name, mixed $value): static;
+
     /** @return Ingredients */
     public function getIngredients(): array;
 }

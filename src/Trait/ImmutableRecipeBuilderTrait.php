@@ -84,9 +84,6 @@ trait ImmutableRecipeBuilderTrait
         return $dependencies;
     }
 
-    /**
-     * @param string[] $recipe
-     */
     private function buildConstructor(array $dependencies): string
     {
         if (empty($dependencies)) {
@@ -201,7 +198,7 @@ trait ImmutableRecipeBuilderTrait
             $ingredient = new Recipe(
                 $ingredient::class,
                 ['value' => $ingredient->getTimestamp()],
-                fn($class, $ingredients) => new $class()->setTimestamp($ingredients['value'])
+                fn ($class, $ingredients) => (new $class())->setTimestamp($ingredients['value']),
             );
         }
 
@@ -215,7 +212,7 @@ trait ImmutableRecipeBuilderTrait
             }
 
             $imports[$ingredientPath] = $this->buildRecipeIngredient($parentIdentifier, $key, $ingredient, $expiration);
-        } else if (is_array($ingredient)) {
+        } elseif (is_array($ingredient)) {
             $arrayKey = empty($parentKey) ? $key : \sprintf('%s.%s', $parentKey, $key);
             $arrayIngredient = $this->buildArrayIngredient($parentIdentifier, $arrayKey, $ingredient, $expiration);
             $buildedIngredient = \sprintf("'%s' => [%s]", $key, $arrayIngredient['ingredients']);
@@ -249,7 +246,7 @@ trait ImmutableRecipeBuilderTrait
     }
 
     /**
-     * @return string Returns the require_once statement 
+     * @return string Returns the require_once statement
      */
-    abstract private function buildRecipeIngredient(string $parentIdentifier, string $key, mixed $ingredient, int $expiration): string;
+    abstract private function buildRecipeIngredient(string $parentIdentifier, string $key, RecipeInterface $ingredient, int $expiration): string;
 }

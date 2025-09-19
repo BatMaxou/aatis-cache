@@ -3,21 +3,24 @@
 namespace Aatis\Cache\Service;
 
 use Aatis\Cache\Component\CacheItem;
-use Aatis\Cache\Component\Recipe;
 use Aatis\Cache\Interface\CachePoolInterface;
 use Aatis\Cache\Interface\ImmutableRecipeInterface;
 use Aatis\Cache\Interface\RecipeInterface;
 use Aatis\Cache\Trait\ImmutableRecipeBuilderTrait;
 use Aatis\Cache\Trait\PoolTrait;
-use Aatis\ClosureContent;
-use DateTimeInterface;
+use Psr\Cache\CacheItemInterface;
 
 class CacheRecipePool implements CachePoolInterface
 {
-    use PoolTrait;
     use ImmutableRecipeBuilderTrait;
+    use PoolTrait;
 
     public const NAME = 'recipe';
+
+    public static function supports(CacheItemInterface $item): bool
+    {
+        return $item->get() instanceof RecipeInterface;
+    }
 
     public static function getName(): string
     {
@@ -40,7 +43,7 @@ class CacheRecipePool implements CachePoolInterface
         $identifier = $this->getIdentifierFromKey($item->getKey());
         $ingredients = $this->buildRecipeIngredients($identifier, $recipe);
         $imports = $ingredients['imports'];
-        $dependencies = $this->buildDependenciesFromImports($imports, $recipe->getExpiration());
+        $dependencies = $this->buildDependenciesFromImports($imports);
 
         if (!empty($imports)) {
             $imports = ['', ...array_values($imports), ''];
@@ -53,7 +56,7 @@ class CacheRecipePool implements CachePoolInterface
             ImmutableRecipeInterface::class,
             $recipe->getClass(),
             $ingredients['ingredients'],
-            $this->buildConstructor($dependencies), 
+            $this->buildConstructor($dependencies),
             (string) $item->getExpiration(),
             $this->buildStepsCalls(array_keys($steps)),
             \implode("\n\n", array_values($steps)),
@@ -66,11 +69,11 @@ class CacheRecipePool implements CachePoolInterface
      * @param T $withValue
      *
      * @return (T is true ? array{
-     *  key: string,
+     *  identifier: string,
      *  expiration: int,
      *  value: ImmutableRecipeInterface<object>
      * } : array{
-     *  key: string,
+     *  identifier: string,
      *  expiration: int
      * })
      */
@@ -86,7 +89,7 @@ class CacheRecipePool implements CachePoolInterface
         }
 
         $result = [
-            'key' => $className,
+            'identifier' => $className,
             'expiration' => $recipe->getExpiration(),
         ];
 
@@ -107,7 +110,7 @@ class CacheRecipePool implements CachePoolInterface
         return $this->buildClassName($key);
     }
 
-    private function buildRecipeIngredient(string $parentIdentifier, string $key, mixed $ingredient, int $expiration): string
+    private function buildRecipeIngredient(string $parentIdentifier, string $key, RecipeInterface $ingredient, int $expiration): string
     {
         $recipeKey = \sprintf('%s %s %s', $parentIdentifier, $key, $ingredient->getClass());
         $this->save($this->cacheItemBuilder->build($recipeKey, $ingredient, $expiration, true));
